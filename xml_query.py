@@ -12,12 +12,11 @@ def main():
         }
     with open(input_file) as csv_file:  # Open the job file as a csv file
         f = csv.reader(csv_file, delimiter=',', lineterminator='\n')  # Create a csv reader object to parse the file
-        filedata = list(f)  # Create a list from this csv to allow for iteration
-        results = FileQuery(rx_regex, filedata)
+        filedata = JobFileQuery(rx_regex, filedata)
         print(results.result_dictionary)
 
 
-class FileQuery:
+class JobFileQuery:
     def __init__(self, search_dictionary, file_data):
             self.result_dictionary = {}
             for row in file_data:

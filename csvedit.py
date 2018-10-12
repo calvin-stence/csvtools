@@ -5,14 +5,21 @@ import pprint
 import os
 import shutil
 
-#todo find jobs in usrxtcal02. determine if jarvis data exists, if so, create folder if it does not exist, copy
-#todo image to this location
+
+# todo find jobs in usrxtcal02. determine if jarvis data exists, if so, create folder if it does not exist, copy
+# todo image to this location
 def main():
     pp = pprint.PrettyPrinter(indent=4)  # Create PrettyPrint object,to cleanly display job data in the console
     job_files = get_jobs(".oma")  # find all the .oma files in the folder and return a list
     job_numbers = remove_file_extension(job_files)  # create a second list of job_numbers without the file extension
     jobs_dictionary = {}  # create a dictionary to store each job and its corresponding data
 
+    rx_regex = {
+        "LDNAM": re.compile(r'LDNAM=(\w\w\w)'),
+        "SPH": re.compile(r'SPH=([-]?\d.\d\d);'),
+        "_SFBASE": re.compile(r'_SFBASE=(\d.\d\d);'),
+        "CRIB": re.compile(r'CRIB=(\d\d).\d\d')
+    }
     # This for loop will do four things:
     # 1. Update the dictionary jobs_dictionary with sub-dictionaries, which each contain the rx data (sphere power,
     # semi-finish base, job number, etc) for their respective job
@@ -23,11 +30,38 @@ def main():
     # 4. Move the Jarvis results (if they exist) from the Jarvis results folder to the relevant file structure from item
     # 3 above
     for i in range(len(job_files)):  # for each job stored in job_files:
-        jobs_dictionary.update(
-            {job_numbers[i]: FileQuery(job_files[i], job_numbers[i]).rx_attributes})  # 1 as described above
-        pp.pprint(jobs_dictionary[job_numbers[i]-])  # 2 as described above
-        create_rx_directory(jobs_dictionary[job_numbers[i]])  # 2 as described above
-        get_jarvis_images(jobs_dictionary[job_numbers[i]])  # 2 as described above
+        with open(job_files[i]) as csv_file:
+            raw_file = csv.reader(csv_file, delimiter=',',
+                                  lineterminator='\n')  # Create a csv reader object to parse the file
+            file_data = list(raw_file)
+            job_data = JobFileQuery(rx_regex, file_data, job_numbers[i]).result_dictionary
+            jobs_dictionary.update({job_numbers[i]: job_data})
+
+            pp.pprint(jobs_dictionary[job_numbers[i]])  # 2 as described abov
+            create_rx_directory(jobs_dictionary[job_numbers[i]])  # 2 as described above
+            try:
+                get_jarvis_images(jobs_dictionary[job_numbers[i]])  # 2 as described above
+            except KeyError:
+                pass
+
+
+
+class JobFileQuery:
+    def __init__(self, search_dictionary, file_data, input_job_number):
+        self.job_number = input_job_number
+        self.result_dictionary = {}
+        self.result_dictionary.update({"JOB=": self.job_number})
+        for row in file_data:
+            for i in range(len(row)):
+                for regex_keys, regex_searches in search_dictionary.items():
+                    if regex_keys in self.result_dictionary.keys():
+                        pass
+                    else:
+                        try:
+                            search_result = re.search(regex_searches, row[i])
+                            self.result_dictionary.update({regex_keys: search_result.group(1)})
+                        except AttributeError:
+                            pass
 
 
 def create_rx_directory(rx_data):
@@ -77,8 +111,8 @@ def set_product_line(self):
 
 def remove_file_extension(extensionjobs):
     jobs = []
-    for index in range(len(extensionjobs)):
-        jobs.append(extensionjobs[index][0:8])
+    for j in range(len(extensionjobs)):
+        jobs.append(re.sub(r'[.]\w\w\w', '', extensionjobs[j]))
     return jobs
 
 
@@ -93,21 +127,6 @@ def remove_file_extension(extensionjobs):
 # value.
 # Data structutre (2) is a dictionary of attributes relevant to the job (such as sphere power, semi-finish base curve, etc). The searches
 # in data structure (1) are stored in this dictionary.
-class FileQuery:
-    def __init__(self, search_dictionary, file_data):
-            self.result_dictionary = {}
-            for row in file_data:
-                for i in range(len(row)):
-                    for regex_keys, regex_searches in search_dictionary.items():
-                        if regex_keys in self.result_dictionary.keys():
-                            pass
-                        else:
-                            try:
-                                search_result = re.search(regex_searches, row[i])
-                                self.result_dictionary.update({regex_keys: search_result.group(1)})
-                            except AttributeError:
-                                pass
-
 class JobRxAttrib(object):
     def __init__(self, input_file, input_job):
         self.file = input_file
